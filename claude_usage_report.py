@@ -5,7 +5,7 @@ Reads token counts from ~/.claude/projects/**/*.jsonl. It reports only
 numbers: no prompts, code, file contents, or project names leave your machine
 unless you choose to share the output.
 
-Usage:  python3 claude_usage_report.py [--days 30] [--name "Your Name"]
+Usage:  python3 claude_usage_report.py [--days 30] [--name "Your Name"] [--csv]
 
 "API-equivalent cost" prices your tokens at Anthropic's public API list
 prices (checked 2026-09-25). It is a yardstick for comparing people and
@@ -15,8 +15,10 @@ plans, not what your subscription charges you.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import re
+import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -84,10 +86,71 @@ def parse(line: str) -> tuple[dict, datetime] | None:
         return None
 
 
+FAMILIES: tuple[str, ...] = ("opus", "sonnet", "haiku", "fable", "mythos")
+
+
+def write_csv(
+    args: argparse.Namespace,
+    today: datetime,
+    active_days: set[str],
+    sessions: set[str],
+    requests: dict[str, tuple[datetime, str, dict]],
+    limit_hits: set[str],
+    total: float,
+    by_model: dict[str, list[float]],
+    unpriced: set[str],
+) -> None:
+    """One summary row, so rows from several people can be pasted into one sheet."""
+    family_cost: dict[str, float] = dict.fromkeys(FAMILIES, 0.0)
+    other = 0.0
+    for m, r in by_model.items():
+        fam = next((f for f in FAMILIES if m.startswith(f)), None)
+        if fam:
+            family_cost[fam] += r[5]
+        else:
+            other += r[5]
+    share = {f: (c / total * 100 if total else 0.0) for f, c in family_cost.items()}
+    header = [
+        "name",
+        "generated",
+        "window_days",
+        "active_days",
+        "sessions",
+        "requests",
+        "limit_hits",
+        "api_cost",
+        "api_cost_per_30d",
+    ]
+    header += [f"pct_cost_{f}" for f in FAMILIES] + [
+        "pct_cost_other",
+        "unpriced_models",
+    ]
+    row = [
+        args.name,
+        f"{today:%Y-%m-%d}",
+        args.days,
+        len(active_days),
+        len(sessions),
+        len(requests),
+        len(limit_hits),
+        f"{total:.2f}",
+        f"{total / max(args.days, 1) * 30:.2f}",
+    ]
+    row += [f"{share[f]:.1f}" for f in FAMILIES]
+    row += [
+        f"{(other / total * 100 if total else 0.0):.1f}",
+        ";".join(sorted(unpriced)),
+    ]
+    w = csv.writer(sys.stdout)
+    w.writerow(header)
+    w.writerow(row)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=30)
     ap.add_argument("--name", default="(not given)")
+    ap.add_argument("--csv", action="store_true", help="print one summary row as CSV")
     args = ap.parse_args()
 
     today = (
@@ -174,6 +237,19 @@ def main() -> None:
 
     search_cost = searches * WEB_SEARCH_PER_REQUEST
     total = sum(r[5] for r in by_model.values()) + search_cost
+    if args.csv:
+        write_csv(
+            args,
+            today,
+            active_days,
+            sessions,
+            requests,
+            limit_hits,
+            total,
+            by_model,
+            unpriced,
+        )
+        return
     M = 1e6
     print(f"Claude Code usage report: {args.name}")
     print(f"Window: last {args.days} days (generated {today:%Y-%m-%d})")

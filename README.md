@@ -4,7 +4,7 @@ A small script that summarizes your Claude Code usage from the session logs Clau
 
 ## Run it
 
-You need Python 3 (already installed on macOS). Nothing else.
+You need Python 3.9 or newer, which current Macs already have. Nothing else.
 
 ```bash
 curl -O https://raw.githubusercontent.com/shandley/claude-usage-report/main/claude_usage_report.py
@@ -12,6 +12,14 @@ python3 claude_usage_report.py --name "Your Name"
 ```
 
 It takes a few seconds. By default it covers the last 30 days; use `--days 60` for a longer window.
+
+Add `--csv` to get a single summary row instead of the full report. Rows from several people can be pasted into one spreadsheet:
+
+```bash
+python3 claude_usage_report.py --name "Your Name" --csv
+```
+
+The CSV includes active days, requests, usage-limit hits, API-equivalent cost, and the share of cost by model family (Opus, Sonnet, Haiku, Fable, Mythos).
 
 If you use Claude Code on more than one computer, run it on each one.
 
@@ -53,13 +61,13 @@ The script does not know your plan's quota, since Anthropic does not publish quo
 
 Send me three things:
 
-1. The full output of the script.
+1. The output of the script, run both ways: once as is and once with `--csv`.
 2. Which Claude plan you are on now.
 3. Whether you also use Claude in the browser or desktop app heavily, since this script only sees Claude Code.
 
 ## Prices
 
-List prices are hard-coded in `PRICES` near the top of the script and were checked on 2026-09-25 against [Anthropic's pricing page](https://platform.claude.com/docs/en/about-claude/pricing). Models without a price are listed at the end of the report and counted as $0.
+List prices are hard-coded in `PRICES` near the top of the script and were checked on 2026-09-25 against [Anthropic's pricing page](https://platform.claude.com/docs/en/about-claude/pricing). Models without a price are listed at the end of the report and counted as $0. This usually means a new model came out after the prices were last updated; mention it when you send your results.
 
 ## License
 
